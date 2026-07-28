@@ -1,0 +1,30 @@
+# Local environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Private data and local deployment artifacts
+data/
+uploads/
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.pth
+*.pt
+*.onnx
+*.engine
+*.json
+!package_metadata.json
+logs/
+runs/
+outputs/
+results/
+
+# Credentials and local configuration
+.env
+.kaggle/
+kaggle.json
+access_token

@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ app_title }}</title>
+  <meta name="theme-color" content="#07111f">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 rx=%2216%22 fill=%22%230ea5a4%22/><path d=%22M8 32s9-15 24-15 24 15 24 15-9 15-24 15S8 32 8 32Z%22 fill=%22none%22 stroke=%22white%22 stroke-width=%225%22/><circle cx=%2232%22 cy=%2232%22 r=%228%22 fill=%22white%22/></svg>">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="iris-mark" aria-hidden="true">
+          <span></span>
+        </div>
+        <div>
+          <h1>{{ app_title }}</h1>
+          <p>NoIR biometric capture workspace</p>
+        </div>
+      </div>
+      <div class="status-strip" aria-live="polite">
+        <div>
+          <span>Status</span>
+          <strong id="systemStatus">{{ initial_status }}</strong>
+        </div>
+        <div>
+          <span>Users</span>
+          <strong id="userCount">{{ initial_user_count }}</strong>
+        </div>
+        <div>
+          <span>Server</span>
+          <strong id="serverIp">{{ initial_server }}</strong>
+        </div>
+      </div>
+    </header>
+
+    <nav class="tabs" aria-label="Dashboard sections">
+      <button class="tab-button active" type="button" data-tab="home">Overview</button>
+      <button class="tab-button" type="button" data-tab="camera">Live Capture</button>
+      <button class="tab-button" type="button" data-tab="recognition">Recognition</button>
+      <button class="tab-button" type="button" data-tab="enrollment">Registration</button>
+      <button class="tab-button" type="button" data-tab="database">People</button>
+      <button class="tab-button" type="button" data-tab="settings">Settings</button>
+    </nav>
+
+    <main>
+      <section id="home" class="panel active">
+        <div class="dashboard-hero">
+          <div>
+            <span class="eyebrow">IRIS ACCESS LAB</span>
+            <h2>Reliable iris capture, from camera to identity.</h2>
+            <p>Use guided NoIR capture for a live demo, or work with existing iris images.</p>
+            <div class="button-row">
+              <button class="primary-button" type="button" data-open-tab="camera">Start live capture</button>
+              <button class="secondary-button" type="button" data-open-tab="recognition">Recognize an image</button>
+            </div>
+          </div>
+          <div class="hero-orbit" aria-hidden="true"><span></span></div>
+        </div>
+
+        <div class="dashboard-grid">
+          <article class="dashboard-card accent-card">
+            <div class="card-kicker">Camera</div>
+            <strong id="homeCameraState">Standby</strong>
+            <p id="homeCameraDetail">Open Live Capture to start the NoIR sensor.</p>
+            <div class="card-metric"><span>Preview rate</span><b id="homeFps">—</b></div>
+          </article>
+          <article class="dashboard-card">
+            <div class="card-kicker">Enrollment</div>
+            <strong><span id="homeUserCount">{{ initial_user_count }}</span> people</strong>
+            <p>Local templates are stored on this Jetson only.</p>
+            <button class="text-button" type="button" data-open-tab="database">View people →</button>
+          </article>
+          <article class="dashboard-card">
+            <div class="card-kicker">Recognition engine</div>
+            <strong>TensorRT ready</strong>
+            <p>Segmentation, normalization, and embedding run locally.</p>
+            <button class="text-button" type="button" data-open-tab="recognition">Open recognition →</button>
+          </article>
+        </div>
+
+        <div class="workflow-card">
+          <div class="section-title">
+            <span class="eyebrow dark">GUIDED WORKFLOW</span>
+            <h2>Three steps to a quality-checked capture</h2>
+          </div>
+          <div class="workflow-steps">
+            <div><span>1</span><strong>Position</strong><p>Center one eye and follow distance guidance.</p></div>
+            <div><span>2</span><strong>Hold still</strong><p>Focus, light, iris confidence, and motion are scored.</p></div>
+            <div><span>3</span><strong>Capture</strong><p>The app saves only after quality remains stable.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="recognition" class="panel">
+        <div class="panel-grid recognition-grid">
+          <div class="surface">
+            <div class="section-title">
+              <h2>Recognition</h2>
+              <p>Upload one iris image for matching.</p>
+            </div>
+
+            <label id="queryDrop" class="drop-zone" for="queryInput">
+              <input id="queryInput" type="file" accept="image/*">
+              <img id="queryPreview" alt="Selected iris preview">
+              <span class="drop-empty">
+                <strong>Choose iris image</strong>
+                <small>Drop here or click to browse</small>
+              </span>
+            </label>
+
+            <div class="control-row">
+              <label class="check-row">
+                <input id="autoRecognize" type="checkbox">
+                <span>Auto-run recognition</span>
+              </label>
+            </div>
+
+            <div class="button-row">
+              <button id="recognizeBtn" class="primary-button" type="button" data-busy-disable>Run Recognition</button>
+              <button id="clearQueryBtn" class="secondary-button" type="button" data-busy-disable>Clear</button>
+            </div>
+          </div>
+
+          <aside class="decision-surface">
+            <div class="section-title">
+              <h2>Decision</h2>
+              <p>Best score across left and right enrolled eyes.</p>
+            </div>
+
+            <div class="decision-block">
+              <div id="decisionText" class="decision-text idle">READY</div>
+              <div id="decisionSub" class="decision-sub">Choose an image to begin.</div>
+            </div>
+
+            <div class="metric-grid">
+              <div class="metric-box">
+                <span>Identity</span>
+                <strong id="identityMetric">-</strong>
+              </div>
+              <div class="metric-box">
+                <span>Matched Eye</span>
+                <strong id="eyeMetric">-</strong>
+              </div>
+              <div class="metric-box">
+                <span>Similarity</span>
+                <strong id="scoreMetric">-</strong>
+              </div>
+              <div class="metric-box">
+                <span>Time</span>
+                <strong id="timeMetric">-</strong>
+              </div>
+            </div>
+
+            <div class="threshold-line">
+              <label for="thresholdRange">Threshold</label>
+              <strong id="thresholdLabel">{{ default_threshold }}</strong>
+            </div>
+            <div class="threshold-control">
+              <input id="thresholdRange" type="range" min="0.10" max="0.95" step="0.01" value="{{ default_threshold }}">
+              <input id="thresholdText" class="text-input threshold-input" type="text" value="{{ default_threshold }}">
+            </div>
+
+            <div class="preset-row" aria-label="Threshold presets">
+              <button class="preset-button" type="button" data-threshold-preset="0.43">CASIA 0.43</button>
+              <button class="preset-button" type="button" data-threshold-preset="0.60">MMU 0.60</button>
+              <button class="preset-button" type="button" data-threshold-preset="0.52">Mixed 0.52</button>
+            </div>
+
+            <div class="match-options">
+              <label>
+                <span>Query eye</span>
+                <select id="queryEye" class="select-input">
+                  <option value="">Unknown</option>
+                  <option value="left">Left</option>
+                  <option value="right">Right</option>
+                </select>
+              </label>
+              <label class="check-row dark-check">
+                <input id="sameSideOnly" type="checkbox" checked>
+                <span>Same-side only</span>
+              </label>
+              <label class="check-row dark-check">
+                <input id="marginEnabled" type="checkbox" checked>
+                <span>Margin</span>
+              </label>
+              <input id="marginText" class="text-input threshold-input" type="text" value="{{ default_margin }}" aria-label="Required margin">
+            </div>
+
+            <pre id="scoreLog" class="score-log">Top matches will appear here.</pre>
+          </aside>
+        </div>
+      </section>
+
+      <section id="enrollment" class="panel">
+        <div class="panel-grid enrollment-grid">
+          <div class="surface">
+            <div class="section-title">
+              <h2>Enrollment / Training</h2>
+              <p>Store a person with one left-eye and one right-eye embedding.</p>
+            </div>
+
+            <label class="field-label" for="enrollName">User name</label>
+            <input id="enrollName" class="text-input" type="text" placeholder="Example: Dat" autocomplete="off">
+
+            <div class="eye-grid">
+              <div>
+                <h3>Left Eye</h3>
+                <label id="leftDrop" class="drop-zone small" for="leftInput">
+                  <input id="leftInput" type="file" accept="image/*">
+                  <img id="leftPreview" alt="Left eye preview">
+                  <span class="drop-empty">
+                    <strong>Choose left eye</strong>
+                    <small>Preview appears here</small>
+                  </span>
+                </label>
+              </div>
+
+              <div>
+                <h3>Right Eye</h3>
+                <label id="rightDrop" class="drop-zone small" for="rightInput">
+                  <input id="rightInput" type="file" accept="image/*">
+                  <img id="rightPreview" alt="Right eye preview">
+                  <span class="drop-empty">
+                    <strong>Choose right eye</strong>
+                    <small>Preview appears here</small>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div class="button-row">
+              <button id="registerBtn" class="primary-button" type="button" data-busy-disable>Enroll User</button>
+              <button id="clearEnrollBtn" class="secondary-button" type="button" data-busy-disable>Clear</button>
+            </div>
+          </div>
+
+          <aside class="decision-surface">
+            <div class="section-title">
+              <h2>Enrollment Result</h2>
+              <p>Both embeddings must be valid before storage.</p>
+            </div>
+
+            <div class="decision-block">
+              <div id="enrollDecision" class="decision-text idle">WAITING</div>
+              <div id="enrollSub" class="decision-sub">Enter a name and choose both eyes.</div>
+            </div>
+
+            <div class="metric-grid">
+              <div class="metric-box">
+                <span>Left Eye</span>
+                <strong id="leftTimeMetric">-</strong>
+              </div>
+              <div class="metric-box">
+                <span>Right Eye</span>
+                <strong id="rightTimeMetric">-</strong>
+              </div>
+              <div class="metric-box">
+                <span>Total Time</span>
+                <strong id="enrollTimeMetric">-</strong>
+              </div>
+              <div class="metric-box">
+                <span>Database</span>
+                <strong id="enrollDbMetric">-</strong>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="database" class="panel">
+        <div class="surface full">
+          <div class="database-head">
+            <div class="section-title">
+              <h2>Database</h2>
+              <p>Local JSON enrollment records on the Jetson.</p>
+            </div>
+            <div class="button-row compact">
+              <button id="refreshDbBtn" class="secondary-button" type="button" data-busy-disable>Refresh</button>
+              <button id="deleteDbBtn" class="danger-button" type="button" data-busy-disable>Delete All</button>
+            </div>
+          </div>
+          <div id="usersGrid" class="users-grid" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section id="camera" class="panel">
+        <div class="capture-shell">
+          <div class="capture-heading">
+            <div>
+              <span class="eyebrow dark">NOIR CAMERA</span>
+              <h2>Guided live capture</h2>
+              <p>Raw sensor color remains visible while the recognition preview is enhanced.</p>
+            </div>
+            <div class="connection-pill"><span id="cameraConnectionDot"></span><b id="cameraConnectionText">Camera idle</b></div>
+          </div>
+
+          <div class="capture-layout">
+            <div class="capture-view-column">
+              <div id="cameraFrame" class="camera-frame modern-camera-frame">
+                <div class="processed-view">
+                  <div class="view-label"><span>Recognition preview</span><b id="processedModeLabel">Contrast</b></div>
+                  <canvas id="cameraProcessedCanvas" aria-label="Processed live camera preview"></canvas>
+                  <div class="eye-guide" aria-hidden="true"><span></span></div>
+                </div>
+                <div class="raw-view">
+                  <div class="view-label"><span>Raw NoIR</span><b>Unmodified</b></div>
+                  <canvas id="cameraRawCanvas" aria-label="Raw NoIR camera preview"></canvas>
+                </div>
+                <div id="cameraEmpty" class="camera-empty capture-empty">
+                  <span class="empty-eye" aria-hidden="true"></span>
+                  <strong>Camera is ready to start</strong>
+                  <small>The first frame may take a few seconds.</small>
+                </div>
+              </div>
+
+              <div class="preview-toolbar" aria-label="Processed preview mode">
+                <span>Preview</span>
+                <button type="button" data-preview-mode="raw">Raw</button>
+                <button type="button" data-preview-mode="grayscale">Grayscale</button>
+                <button class="active" type="button" data-preview-mode="contrast">NIR contrast</button>
+                <button type="button" data-preview-mode="crop">Eye crop</button>
+              </div>
+
+              <div class="camera-actionbar">
+                <button id="cameraStartBtn" class="primary-button large-action" type="button">Start camera</button>
+                <button id="cameraCaptureNowBtn" class="secondary-button large-action" type="button">Capture now</button>
+                <button id="cameraStopBtn" class="quiet-button" type="button">Stop</button>
+                <button id="cameraPhotoBtn" class="quiet-button" type="button">Manual photo</button>
+                <button id="cameraReleaseBtn" class="quiet-button" type="button">Release</button>
+              </div>
+            </div>
+
+            <aside class="quality-rail">
+              <div class="capture-purpose">
+                <span class="rail-label">Capture for</span>
+                <div class="segmented-control">
+                  <button class="active" type="button" data-capture-target="query">Recognition</button>
+                  <button type="button" data-capture-target="left">Left eye</button>
+                  <button type="button" data-capture-target="right">Right eye</button>
+                </div>
+              </div>
+
+              <div class="quality-score-card">
+                <div class="score-ring" id="qualityRing"><span id="qualityScore">0</span><small>/100</small></div>
+                <div>
+                  <span class="rail-label">Capture quality</span>
+                  <strong id="qualityLabel">Waiting for camera</strong>
+                  <p id="qualityGuidance">Start the live view to begin guidance.</p>
+                </div>
+              </div>
+
+              <div class="stability-track" aria-label="Stable capture progress">
+                <span id="stableProgress"></span>
+              </div>
+              <div class="auto-capture-row">
+                <label class="switch-row">
+                  <input id="autoCaptureEnabled" type="checkbox" checked>
+                  <span></span>
+                  <b>Auto-capture when stable</b>
+                </label>
+                <small id="stableText">Waiting</small>
+              </div>
+
+              <div class="quality-metrics">
+                <div><span class="metric-dot" id="focusDot"></span><b>Sharpness</b><strong id="focusValue">—</strong></div>
+                <div><span class="metric-dot" id="lightDot"></span><b>Lighting</b><strong id="lightValue">—</strong></div>
+                <div><span class="metric-dot" id="irisDot"></span><b>Iris</b><strong id="irisValue">—</strong></div>
+                <div><span class="metric-dot" id="sizeDot"></span><b>Distance</b><strong id="sizeValue">—</strong></div>
+                <div><span class="metric-dot" id="motionDot"></span><b>Stability</b><strong id="motionValue">—</strong></div>
+                <div><span class="metric-dot" id="fpsDot"></span><b>Stream</b><strong id="cameraFpsValue">—</strong></div>
+              </div>
+
+              <div class="decision-block camera-status-block">
+                <div id="cameraDecision" class="decision-text idle">STANDBY</div>
+                <div id="cameraSub" class="decision-sub">No image has been captured.</div>
+              </div>
+
+              <div class="camera-preview-grid saved-captures">
+                <div><span>Query</span><img id="cameraQueryPreview" alt="Saved recognition iris"></div>
+                <div><span>Left</span><img id="cameraLeftPreview" alt="Saved left iris"></div>
+                <div><span>Right</span><img id="cameraRightPreview" alt="Saved right iris"></div>
+              </div>
+
+              <div class="camera-controls enrollment-actions">
+                <label><span>User name for registration</span><input id="cameraEnrollName" class="text-input" type="text" placeholder="Enter a name" autocomplete="off"></label>
+                <div class="button-row compact">
+                  <button id="cameraRecognizeBtn" class="secondary-button" type="button">Recognize capture</button>
+                  <button id="cameraEnrollBtn" class="primary-button" type="button">Register person</button>
+                </div>
+              </div>
+            </aside>
+          </div>
+
+          <details class="advanced-crop">
+            <summary>Manual crop fallback</summary>
+            <p>Use this only when automatic eye detection cannot find the iris.</p>
+            <div class="manual-crop-grid">
+              <div id="cameraPhotoTool" class="camera-photo-tool">
+                <img id="cameraPhoto" alt="Captured photo for manual iris crop">
+                <div id="cropBox" class="crop-box"></div>
+                <div id="photoEmpty" class="camera-empty">Choose “Manual photo”, then draw around the iris.</div>
+              </div>
+              <div>
+                <div class="button-row compact">
+                  <button id="cropQueryBtn" class="secondary-button" type="button">Use for recognition</button>
+                  <button id="cropEnrollBtn" class="primary-button" type="button">Add to registration</button>
+                </div>
+                <pre id="cameraLog" class="score-log">Camera events will appear here.</pre>
+              </div>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <section id="settings" class="panel">
+        <div class="settings-layout">
+          <div class="surface settings-card">
+            <div class="section-title"><span class="eyebrow dark">CAPTURE</span><h2>Camera settings</h2><p>These controls affect the browser preview and quality gate.</p></div>
+            <label class="setting-row"><span><b>Orientation</b><small>Auto detects face direction; override for a fixed mount.</small></span><select id="cameraRotation" class="select-input"><option value="auto">Automatic</option><option value="0">0°</option><option value="90">90° clockwise</option><option value="180">180°</option><option value="270">90° counter-clockwise</option></select></label>
+            <label class="setting-row"><span><b>Quality threshold</b><small>Higher values reject more marginal captures.</small></span><div class="range-setting"><input id="qualityThreshold" type="range" min="60" max="90" step="1" value="72"><strong id="qualityThresholdValue">72</strong></div></label>
+            <label class="setting-row"><span><b>Stable period</b><small>Continuous good frames required before capture.</small></span><select id="stableDuration" class="select-input"><option value="800">0.8 seconds</option><option value="1200" selected>1.2 seconds</option><option value="1800">1.8 seconds</option></select></label>
+          </div>
+          <aside class="noir-note">
+            <span class="eyebrow">ABOUT NOIR</span>
+            <h2>Why the raw image is purple</h2>
+            <p>A NoIR sensor has no infrared-cut filter. Near-infrared light reaches the red, green, and blue photosites in proportions the normal color pipeline was not designed to balance, so purple or magenta color is expected—not a network fault.</p>
+            <p>The NIR contrast preview converts the same raw frame to grayscale and applies local contrast for positioning. The original frame remains available and unchanged.</p>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="loader" class="loader" aria-live="assertive" aria-hidden="true">
+    <div class="loader-box">
+      <div class="spinner" aria-hidden="true"></div>
+      <strong id="loaderText">Processing...</strong>
+      <span>Jetson is running segmentation and TensorRT inference.</span>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    window.IRIS_CONFIG = {
+      defaultThreshold: "{{ default_threshold }}",
+      defaultMargin: "{{ default_margin }}",
+      serverPort: {{ server_port }}
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
